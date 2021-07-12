@@ -84,7 +84,7 @@ def _convert_list(object, metadata, name=None):
 def _convert_dict(object, metadata):
     assert isinstance(object, dict)
 
-    table_name = object.get('__name', 'object')
+    table_name = object.get('__name', 'objects')
     if table_name not in metadata.tables:
         logger.info(f"creating table {table_name}")
         table = sqlalchemy.Table(table_name, metadata)
