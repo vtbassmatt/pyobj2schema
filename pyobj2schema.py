@@ -11,7 +11,7 @@ def convert(object):
     elif isinstance(object, list):
         _convert_list(object, tables)
     else:
-        raise NotImplementedError('only dicts are supported')
+        raise NotImplementedError('only dicts and lists are supported')
 
     return tables
 
@@ -59,8 +59,10 @@ def _convert_list(object, tables, name=None):
                 first = first_prime
             _convert_dict(first, tables)
         elif isinstance(first, list):
-            # TODO: handle lists
-            pass
+            # TODO: is there a better way to cook up a nested table name?
+            nest_name = f"{table_name}_nested"
+            sub_table_name = _convert_list(first, tables, name=nest_name)
+            tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
         else:
             raise NotImplementedError(f'items in {table_name} are not in a format we understand')
     
@@ -92,8 +94,8 @@ def _convert_dict(object, tables):
             sub_table_name = _convert_dict(v, tables)
             tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
         elif isinstance(v, list):
-            # TODO: handle lists
-            pass
+            sub_table_name = _convert_list(v, tables, name=k)
+            tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
         else:
             raise NotImplementedError(f'item at {k} is not a format we understand')
     
@@ -126,6 +128,9 @@ if __name__ == '__main__':
         'tab': {
             'bongo': 'boingo',
         },
+        'nest': [
+            [ 'double-nest-1', 'double-nest-2' ],
+        ],
     }
     result1 = convert(example1)
 
