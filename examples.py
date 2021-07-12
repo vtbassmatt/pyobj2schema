@@ -1,14 +1,22 @@
+_example0 = {
+    '__name': 'example0',
+    'foo': 'stringy',
+    'bar': 42,
+    'isit': True,
+    'isntit': False,
+}
+
 _example1 = {
     '__name': 'example1',
     'foo': 'is a string',
     'bar': 42,
-    # 'zab': [ 'a', 'b', 'c' ],
+    'zab': [ 'a', 'b', 'c' ],
     'tab': {
         'bongo': 'boingo',
     },
-    # 'nest': [
-    #     [ 'double-nest-1', 'double-nest-2' ],
-    # ],
+    'nest': [
+        [ 'double-nest-1', 'double-nest-2' ],
+    ],
 }
 
 _example2 = {
@@ -119,7 +127,8 @@ _example3 = [
 
 
 EXAMPLES = (
+    _example0,
     _example1,
-    # _example2,
-    # _example3,
+    _example2,
+    _example3,
 )

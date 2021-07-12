@@ -11,7 +11,6 @@ def convert(object):
     if isinstance(object, dict):
         _convert_dict(object, metadata)
     elif isinstance(object, list):
-        raise NotImplementedError('WIP - ignore lists')
         _convert_list(object, metadata)
     else:
         raise NotImplementedError('only dicts and lists are supported')
@@ -23,7 +22,7 @@ class RedefineKeyError(RuntimeError):
     pass
 
 
-def _convert_list(object, tables, name=None):
+def _convert_list(object, metadata, name=None):
     assert isinstance(object, list)
 
     if name:
@@ -31,34 +30,50 @@ def _convert_list(object, tables, name=None):
     else:
         table_name = 'objects'
 
-    if table_name not in tables:
+    if table_name not in metadata.tables:
         logger.info(f"creating table {table_name}")
-        tables[table_name] = {
-            'id': 'INTEGER PRIMARY KEY',
-        }
+        table = sqlalchemy.Table(table_name, metadata)
+        table.append_column(
+            sqlalchemy.Column(
+                'id',
+                sqlalchemy.Integer,
+                primary_key=True,
+            )
+        )
         if name:
             # if this is not the outer-most object,
             # then it's an ordered array and we need
             # to track that
-            tables[table_name]['_order'] = 'INTEGER'
+            table.append_column(
+                sqlalchemy.Column(
+                    '_order',
+                    sqlalchemy.Integer,
+                )
+            )
     
     # for now, assume that the first item is representative
     if len(object) > 0:
         first = object[0]
-        if _handle_scalar('data', first, tables[table_name]):
+        if _handle_scalar('data', first, metadata.tables[table_name]):
             pass
         elif isinstance(first, dict):
             if '__name' not in first:
                 first_prime = { '__name': table_name }
                 first_prime.update(first)
                 first = first_prime
-            _convert_dict(first, tables)
+            _convert_dict(first, metadata)
         elif isinstance(first, list):
-            raise NotImplementedError('WIP - ignore lists')
             # TODO: is there a better way to cook up a nested table name?
             nest_name = f"{table_name}_nested"
-            sub_table_name = _convert_list(first, tables, name=nest_name)
-            tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
+            sub_table_name = _convert_list(first, metadata, name=nest_name)
+            metadata.tables[sub_table_name].append_column(
+                sqlalchemy.Column(
+                    f"{table_name}_id",
+                    sqlalchemy.Integer,
+                    sqlalchemy.ForeignKey(f"{table_name}.id"),
+                    nullable=False,
+                )
+            )
         else:
             raise NotImplementedError(f'items in {table_name} are not in a format we understand')
     
@@ -106,9 +121,15 @@ def _convert_dict(object, metadata):
                 )
             )
         elif isinstance(v, list):
-            pass
-            # sub_table_name = _convert_list(v, tables, name=k)
-            # tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
+            sub_table_name = _convert_list(v, metadata, name=k)
+            metadata.tables[sub_table_name].append_column(
+                sqlalchemy.Column(
+                    f"{table_name}_id",
+                    sqlalchemy.Integer,
+                    sqlalchemy.ForeignKey(f"{table_name}.id"),
+                    nullable=False,
+                )
+            )
         else:
             raise NotImplementedError(f'item at {k} is not a format we understand')
     
