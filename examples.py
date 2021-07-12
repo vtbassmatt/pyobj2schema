@@ -1,9 +1,13 @@
+import decimal
+
+
 _example0 = {
     '__name': 'example0',
     'foo': 'stringy',
     'bar': 42,
     'isit': True,
     'isntit': False,
+    'dewey': decimal.Decimal(0.5),
 }
 
 _example1 = {

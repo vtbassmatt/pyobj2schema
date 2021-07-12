@@ -1,4 +1,5 @@
 'Convert a Python object into a relational schema.'
+from decimal import Decimal
 import logging
 
 import sqlalchemy
@@ -51,7 +52,7 @@ def _convert_list(object, metadata, name=None):
                 )
             )
     
-    # for now, assume that the first item is representative
+    # TODO: for now, assume that the first item is representative
     if len(object) > 0:
         first = object[0]
         if _handle_scalar('data', first, metadata.tables[table_name]):
@@ -75,7 +76,7 @@ def _convert_list(object, metadata, name=None):
                 )
             )
         else:
-            raise NotImplementedError(f'items in {table_name} are not in a format we understand')
+            raise NotImplementedError(f'items in table "{table_name}" are not in a format we understand')
     
     return table_name
 
@@ -131,7 +132,7 @@ def _convert_dict(object, metadata):
                 )
             )
         else:
-            raise NotImplementedError(f'item at {k} is not a format we understand')
+            raise NotImplementedError(f'item at key "{k}" is not a format we understand')
     
     return table_name
 
@@ -156,6 +157,13 @@ def _handle_scalar(key, value, table):
             sqlalchemy.Column(
                 key,
                 sqlalchemy.Float,
+            )
+        )
+    elif isinstance(value, Decimal):
+        table.append_column(
+            sqlalchemy.Column(
+                key,
+                sqlalchemy.Numeric,
             )
         )
     elif isinstance(value, str):
