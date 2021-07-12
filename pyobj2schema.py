@@ -14,6 +14,14 @@ def convert(object):
     return tables
 
 
+def produce_schema(tables):
+    sql = []
+    for table_name, schema in tables.items():
+        cols = [f"{k} {v}" for k, v in schema.items()]
+        sql.append(f'CREATE TABLE {table_name} ({", ".join(cols)})')
+    return ";\n".join(sql) + ';'
+
+
 class RedefineKeyError(RuntimeError):
     pass
 
@@ -71,4 +79,4 @@ if __name__ == '__main__':
     print("Original object:")
     pprint(example1)
     print("Resulting schema:")
-    pprint(result1)
+    print(produce_schema(result1))
