@@ -98,21 +98,21 @@ def _convert_dict(object, metadata):
     else:
         table = metadata.tables[table_name]
 
-    for k, v in object.items():
-        if k.startswith('__'):
+    for key, value in object.items():
+        if key.startswith('__'):
             continue
 
-        if k in table.columns:
-            raise RedefineKeyError(k)
+        if key in table.columns:
+            raise RedefineKeyError(key)
 
-        if _handle_scalar(k, v, metadata.tables[table_name]):
+        if _handle_scalar(key, value, metadata.tables[table_name]):
             pass
-        elif isinstance(v, dict):
-            if '__name' not in v:
-                v_prime = { '__name': k }
-                v_prime.update(v)
-                v = v_prime
-            sub_table_name = _convert_dict(v, metadata)
+        elif isinstance(value, dict):
+            if '__name' not in value:
+                v_prime = { '__name': key }
+                v_prime.update(value)
+                value = v_prime
+            sub_table_name = _convert_dict(value, metadata)
             metadata.tables[sub_table_name].append_column(
                 sqlalchemy.Column(
                     f"{table_name}_id",
@@ -121,8 +121,8 @@ def _convert_dict(object, metadata):
                     nullable=False,
                 )
             )
-        elif isinstance(v, list):
-            sub_table_name = _convert_list(v, metadata, name=k)
+        elif isinstance(value, list):
+            sub_table_name = _convert_list(value, metadata, name=key)
             metadata.tables[sub_table_name].append_column(
                 sqlalchemy.Column(
                     f"{table_name}_id",
@@ -132,7 +132,7 @@ def _convert_dict(object, metadata):
                 )
             )
         else:
-            raise NotImplementedError(f'item at key "{k}" is not a format we understand')
+            raise NotImplementedError(f'item at key "{key}" is not a format we understand')
     
     return table_name
 
