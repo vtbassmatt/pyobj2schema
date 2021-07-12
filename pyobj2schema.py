@@ -8,6 +8,8 @@ def convert(object):
 
     if isinstance(object, dict):
         _convert_dict(object, tables)
+    elif isinstance(object, list):
+        _convert_list(object, tables)
     else:
         raise NotImplementedError('only dicts are supported')
 
@@ -26,6 +28,45 @@ class RedefineKeyError(RuntimeError):
     pass
 
 
+def _convert_list(object, tables, name=None):
+    assert isinstance(object, list)
+
+    if name:
+        table_name = name
+    else:
+        table_name = 'objects'
+
+    if table_name not in tables:
+        logger.info(f"creating table {table_name}")
+        tables[table_name] = {
+            'id': 'INTEGER PRIMARY KEY',
+        }
+        if name:
+            # if this is not the outer-most object,
+            # then it's an ordered array and we need
+            # to track that
+            tables[table_name]['_order'] = 'INTEGER'
+    
+    # for now, assume that the first item is representative
+    if len(object) > 0:
+        first = object[0]
+        if _handle_scalar('data', first, tables[table_name]):
+            pass
+        elif isinstance(first, dict):
+            if '__name' not in first:
+                first_prime = { '__name': table_name }
+                first_prime.update(first)
+                first = first_prime
+            _convert_dict(first, tables)
+        elif isinstance(first, list):
+            # TODO: handle lists
+            pass
+        else:
+            raise NotImplementedError(f'items in {table_name} are not in a format we understand')
+    
+    return table_name
+
+
 def _convert_dict(object, tables):
     assert isinstance(object, dict)
 
@@ -41,14 +82,8 @@ def _convert_dict(object, tables):
         if k in tables[table_name]:
             raise RedefineKeyError(k)
 
-        if isinstance(v, bool):
-            tables[table_name][k] = "BOOLEAN"
-        elif isinstance(v, int):
-            tables[table_name][k] = "INTEGER"
-        elif isinstance(v, float):
-            tables[table_name][k] = "REAL"
-        elif isinstance(v, str):
-            tables[table_name][k] = "TEXT"
+        if _handle_scalar(k, v, tables[table_name]):
+            pass
         elif isinstance(v, dict):
             if '__name' not in v:
                 v_prime = { '__name': k }
@@ -63,6 +98,21 @@ def _convert_dict(object, tables):
             raise NotImplementedError(f'item at {k} is not a format we understand')
     
     return table_name
+
+
+def _handle_scalar(key, value, table):
+    if isinstance(value, bool):
+        table[key] = "BOOLEAN"
+    elif isinstance(value, int):
+        table[key] = "INTEGER"
+    elif isinstance(value, float):
+        table[key] = "REAL"
+    elif isinstance(value, str):
+        table[key] = "TEXT"
+    else:
+        return False
+    
+    return True
 
 
 if __name__ == '__main__':
@@ -189,3 +239,17 @@ if __name__ == '__main__':
     pprint(example2)
     print("Resulting schema:")
     print(produce_schema(result2))
+
+    example3 = [
+        {
+            'foo': 'is a string',
+            'bar': 42,
+        },
+    ]
+    result3 = convert(example3)
+
+    print("-- example 3 -- ")
+    print("Original object:")
+    pprint(example3)
+    print("Resulting schema:")
+    print(produce_schema(result3))
