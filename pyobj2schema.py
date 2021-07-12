@@ -55,7 +55,7 @@ def _convert_list(object, metadata, name=None):
     # TODO: for now, assume that the first item is representative
     if len(object) > 0:
         first = object[0]
-        if _handle_scalar('data', first, metadata.tables[table_name]):
+        if _handle_if_scalar('data', first, metadata.tables[table_name]):
             pass
         elif isinstance(first, dict):
             if '__name' not in first:
@@ -66,15 +66,7 @@ def _convert_list(object, metadata, name=None):
         elif isinstance(first, list):
             # TODO: is there a better way to cook up a nested table name?
             nest_name = f"{table_name}_nested"
-            sub_table_name = _convert_list(first, metadata, name=nest_name)
-            metadata.tables[sub_table_name].append_column(
-                sqlalchemy.Column(
-                    f"{table_name}_id",
-                    sqlalchemy.Integer,
-                    sqlalchemy.ForeignKey(f"{table_name}.id"),
-                    nullable=False,
-                )
-            )
+            _handle_if_list(nest_name, first, metadata, table_name)
         else:
             raise NotImplementedError(f'items in table "{table_name}" are not in a format we understand')
     
@@ -105,7 +97,9 @@ def _convert_dict(object, metadata):
         if key in table.columns:
             raise RedefineKeyError(key)
 
-        if _handle_scalar(key, value, metadata.tables[table_name]):
+        if _handle_if_scalar(key, value, metadata.tables[table_name]):
+            pass
+        elif _handle_if_list(key, value, metadata, table_name):
             pass
         elif isinstance(value, dict):
             if '__name' not in value:
@@ -121,23 +115,13 @@ def _convert_dict(object, metadata):
                     nullable=False,
                 )
             )
-        elif isinstance(value, list):
-            sub_table_name = _convert_list(value, metadata, name=key)
-            metadata.tables[sub_table_name].append_column(
-                sqlalchemy.Column(
-                    f"{table_name}_id",
-                    sqlalchemy.Integer,
-                    sqlalchemy.ForeignKey(f"{table_name}.id"),
-                    nullable=False,
-                )
-            )
         else:
             raise NotImplementedError(f'item at key "{key}" is not a format we understand')
     
     return table_name
 
 
-def _handle_scalar(key, value, table):
+def _handle_if_scalar(key, value, table):
     if isinstance(value, bool):
         table.append_column(
             sqlalchemy.Column(
@@ -176,6 +160,23 @@ def _handle_scalar(key, value, table):
     else:
         return False
     
+    return True
+
+
+def _handle_if_list(key, value, metadata, table_name):
+    if not isinstance(value, list):
+        return False
+
+    sub_table_name = _convert_list(value, metadata, name=key)
+    metadata.tables[sub_table_name].append_column(
+        sqlalchemy.Column(
+            f"{table_name}_id",
+            sqlalchemy.Integer,
+            sqlalchemy.ForeignKey(f"{table_name}.id"),
+            nullable=False,
+        )
+    )
+
     return True
 
 
