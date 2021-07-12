@@ -1,4 +1,7 @@
 'Convert a Python object into a relational schema.'
+import logging
+
+logger = logging.getLogger(__name__)
 
 def convert(object):
     tables = {}
@@ -11,35 +14,36 @@ def convert(object):
     return tables
 
 
+class RedefineKeyError(RuntimeError):
+    pass
+
+
 def _convert_dict(object, tables):
     assert isinstance(object, dict)
 
     table_name = object.get('__name', 'object')
     if table_name not in tables:
-        print(f"creating table {table_name}")
-        tables[table_name] = ['id INTEGER PRIMARY KEY']
+        logger.info(f"creating table {table_name}")
+        tables[table_name] = {'id': 'INTEGER PRIMARY KEY' }
 
     for k, v in object.items():
         if k.startswith('__'):
             continue
 
+        if k in tables[table_name]:
+            raise RedefineKeyError(k)
+
         if isinstance(v, int):
-            tables[table_name].append(
-                f"{k} INTEGER"
-            )
+            tables[table_name][k] = "INTEGER"
         elif isinstance(v, str):
-            tables[table_name].append(
-                f"{k} TEXT"
-            )
+            tables[table_name][k] = "TEXT"
         elif isinstance(v, dict):
             if '__name' not in v:
                 v_prime = { '__name': k }
                 v_prime.update(v)
                 v = v_prime
             sub_table_name = _convert_dict(v, tables)
-            tables[sub_table_name].append(
-                f"{table_name}_id FOREIGN KEY {table_name}.id"
-            )
+            tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
         elif isinstance(v, list):
             # TODO: handle lists
             pass
