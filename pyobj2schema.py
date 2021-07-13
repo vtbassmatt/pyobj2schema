@@ -1,8 +1,17 @@
 'Convert a Python object into a relational schema.'
 from decimal import Decimal
 import logging
+import os
 
 import sqlalchemy
+
+log_level = os.environ.get('LOGLEVEL', None)
+if log_level:
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if numeric_level:
+        logging.basicConfig(level=numeric_level)
+    else:
+        logging.warning(f'{log_level} is not a valid log level')
 
 logger = logging.getLogger(__name__)
 
