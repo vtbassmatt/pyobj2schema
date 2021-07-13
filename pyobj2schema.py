@@ -61,7 +61,12 @@ def _convert_list(object, metadata, hints, name=None):
             )
     
     for current in object:
-        if _handle_if_scalar('data', current, metadata.tables[table_name], hints):
+        if scalar_name := hints.get(table_name, {}).get('data_name', None):
+            logger.info(f"{table_name} data will be called {scalar_name}")
+        else:
+            scalar_name = 'data'
+
+        if _handle_if_scalar(scalar_name, current, metadata.tables[table_name], hints):
             pass
         elif isinstance(current, dict):
             if '__name' not in current:

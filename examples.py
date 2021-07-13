@@ -24,6 +24,7 @@ _example1 = {
     ],
 }
 
+# this example courtesy https://scryfall.com
 _example2 = {
     "__name": "card",
     "id": "0000579f-7b35-4ed3-b44c-db2a538066fe",
@@ -128,6 +129,15 @@ _example2_hints = {
     },
     'card.released_at': {
         'type': Date,
+    },
+    'multiverse_ids': {
+        'data_name': 'multiverse_id',
+    },
+    'games': {
+        'data_name': 'game',
+    },
+    'artist_ids': {
+        'data_name': 'artist_id',
     },
 }
 
