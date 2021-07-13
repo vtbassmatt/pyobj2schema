@@ -15,13 +15,13 @@ if log_level:
 
 logger = logging.getLogger(__name__)
 
-def convert(object):
+def convert(object, hints={}):
     metadata = sqlalchemy.MetaData()
 
     if isinstance(object, dict):
-        _convert_dict(object, metadata)
+        _convert_dict(object, metadata, hints)
     elif isinstance(object, list):
-        _convert_list(object, metadata)
+        _convert_list(object, metadata, hints)
     else:
         raise NotImplementedError('only dicts and lists are supported')
 
@@ -31,7 +31,7 @@ def convert(object):
 class ColumnAlreadyExists(RuntimeError): pass
 
 
-def _convert_list(object, metadata, name=None):
+def _convert_list(object, metadata, hints, name=None):
     assert isinstance(object, list)
 
     if name:
@@ -61,25 +61,25 @@ def _convert_list(object, metadata, name=None):
             )
     
     for current in object:
-        if _handle_if_scalar('data', current, metadata.tables[table_name]):
+        if _handle_if_scalar('data', current, metadata.tables[table_name], hints):
             pass
         elif isinstance(current, dict):
             if '__name' not in current:
                 first_prime = { '__name': table_name }
                 first_prime.update(current)
                 current = first_prime
-            _convert_dict(current, metadata)
+            _convert_dict(current, metadata, hints)
         elif isinstance(current, list):
             # TODO: is there a better way to cook up a nested table name?
             nest_name = f"{table_name}_nested"
-            _handle_if_list(nest_name, current, metadata, table_name)
+            _handle_if_list(nest_name, current, metadata, table_name, hints)
         else:
             raise NotImplementedError(f'items in table "{table_name}" are not in a format we understand')
     
     return table_name
 
 
-def _convert_dict(object, metadata):
+def _convert_dict(object, metadata, hints):
     assert isinstance(object, dict)
 
     table_name = object.get('__name', 'objects')
@@ -100,16 +100,16 @@ def _convert_dict(object, metadata):
         if key.startswith('__'):
             continue
 
-        if _handle_if_scalar(key, value, metadata.tables[table_name]):
+        if _handle_if_scalar(key, value, metadata.tables[table_name], hints):
             pass
-        elif _handle_if_list(key, value, metadata, table_name):
+        elif _handle_if_list(key, value, metadata, table_name, hints):
             pass
         elif isinstance(value, dict):
             if '__name' not in value:
                 v_prime = { '__name': key }
                 v_prime.update(value)
                 value = v_prime
-            sub_table_name = _convert_dict(value, metadata)
+            sub_table_name = _convert_dict(value, metadata, hints)
             metadata.tables[sub_table_name].append_column(
                 sqlalchemy.Column(
                     f"{table_name}_id",
@@ -124,7 +124,7 @@ def _convert_dict(object, metadata):
     return table_name
 
 
-def _handle_if_scalar(key, value, table):
+def _handle_if_scalar(key, value, table, hints):
     column_exists = (key in table.columns)
     new_type = None
 
@@ -167,11 +167,11 @@ def _handle_if_scalar(key, value, table):
     return True
 
 
-def _handle_if_list(key, value, metadata, table_name):
+def _handle_if_list(key, value, metadata, table_name, hints):
     if not isinstance(value, list):
         return False
 
-    sub_table_name = _convert_list(value, metadata, name=key)
+    sub_table_name = _convert_list(value, metadata, hints, name=key)
     metadata.tables[sub_table_name].append_column(
         sqlalchemy.Column(
             f"{table_name}_id",
