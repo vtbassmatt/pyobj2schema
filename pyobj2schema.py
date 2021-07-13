@@ -28,8 +28,7 @@ def convert(object):
     return metadata
 
 
-class RedefineKeyError(RuntimeError):
-    pass
+class ColumnAlreadyExists(RuntimeError): pass
 
 
 def _convert_list(object, metadata, name=None):
@@ -103,9 +102,6 @@ def _convert_dict(object, metadata):
         if key.startswith('__'):
             continue
 
-        if key in table.columns:
-            raise RedefineKeyError(key)
-
         if _handle_if_scalar(key, value, metadata.tables[table_name]):
             pass
         elif _handle_if_list(key, value, metadata, table_name):
@@ -131,43 +127,43 @@ def _convert_dict(object, metadata):
 
 
 def _handle_if_scalar(key, value, table):
+    column_exists = (key in table.columns)
+    new_type = None
+
     if isinstance(value, bool):
-        table.append_column(
-            sqlalchemy.Column(
-                key,
-                sqlalchemy.Boolean,
-            )
-        )
+        new_type = sqlalchemy.Boolean
     elif isinstance(value, int):
-        table.append_column(
-            sqlalchemy.Column(
-                key,
-                sqlalchemy.Integer,
-            )
-        )
+        new_type = sqlalchemy.Integer
     elif isinstance(value, float):
-        table.append_column(
-            sqlalchemy.Column(
-                key,
-                sqlalchemy.Float,
-            )
-        )
+        new_type = sqlalchemy.Float
     elif isinstance(value, Decimal):
-        table.append_column(
-            sqlalchemy.Column(
-                key,
-                sqlalchemy.Numeric,
-            )
-        )
+        new_type = sqlalchemy.Numeric
     elif isinstance(value, str):
-        table.append_column(
-            sqlalchemy.Column(
-                key,
-                sqlalchemy.Text,
-            )
-        )
+        new_type = sqlalchemy.Text
     else:
         return False
+    
+    if column_exists:
+        # check that the type is compatible
+        if key == 'id':
+            # upgrade the `id` column to whatever the data has
+            logger.info(f"changing '{key}' type to '{new_type}'")
+            table.columns[key].type = new_type()
+            return True
+
+        # TODO: check more details like nullability
+        if new_type == table.columns[key].type:
+            return True
+
+        if new_type == sqlalchemy.Numeric and table.columns[key].type == sqlalchemy.Integer:
+            # it's safe to upgrade an integer to a decimal
+            table.columns[key].type = new_type()
+            return True
+
+        raise ColumnAlreadyExists(key)
+
+    else:
+        table.append_column(sqlalchemy.Column(key, new_type))
     
     return True
 
