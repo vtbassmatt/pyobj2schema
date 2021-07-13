@@ -128,7 +128,13 @@ def _handle_if_scalar(key, value, table, hints):
     column_exists = (key in table.columns)
     new_type = None
 
-    if isinstance(value, bool):
+    hint_key = f"{table.name}.{key}"
+    hint_type = hints.get(hint_key, {}).get('type', None)
+
+    if hint_type:
+        logger.info(f"{hint_key} using hinted type {hint_type}")
+        new_type = hint_type
+    elif isinstance(value, bool):
         new_type = sqlalchemy.Boolean
     elif isinstance(value, int):
         new_type = sqlalchemy.Integer
@@ -187,11 +193,16 @@ def _handle_if_list(key, value, metadata, table_name, hints):
 if __name__ == '__main__':
     from pprint import pprint
     from sqlalchemy.dialects import sqlite
+    from typing import Tuple
 
     from examples import EXAMPLES
 
     for index, example in enumerate(EXAMPLES):
-        result = convert(example)
+        if isinstance(example, Tuple):
+            example, hints = example
+        else:
+            hints = {}
+        result = convert(example, hints)
 
         print(f"-- example {index} -- ")
         print("Original object:")

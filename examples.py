@@ -1,4 +1,5 @@
 import decimal
+from sqlalchemy import Numeric, Date
 
 
 _example0 = {
@@ -121,6 +122,14 @@ _example2 = {
          "mtgtop8": "https://mtgtop8.com/search?MD_check=1\u0026SB_check=1\u0026cards=Fury+Sliver"
     }
 }
+_example2_hints = {
+    'card.cmc': {
+        'type': Numeric,
+    },
+    'card.released_at': {
+        'type': Date,
+    },
+}
 
 _example3 = [
     {
@@ -141,6 +150,6 @@ _example3 = [
 EXAMPLES = (
     _example0,
     _example1,
-    _example2,
+    (_example2, _example2_hints),
     _example3,
 )
