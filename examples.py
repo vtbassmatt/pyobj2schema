@@ -127,6 +127,14 @@ _example3 = [
         'foo': 'is a string',
         'bar': 42,
     },
+    {
+        'foo': 'still a string',
+        'tab': True,
+    },
+    {
+        'foo': 'this should upconvert',
+        'bar': decimal.Decimal(42.5),
+    },
 ]
 
 

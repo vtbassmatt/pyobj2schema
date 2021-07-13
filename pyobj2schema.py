@@ -60,21 +60,19 @@ def _convert_list(object, metadata, name=None):
                 )
             )
     
-    # TODO: for now, assume that the first item is representative
-    if len(object) > 0:
-        first = object[0]
-        if _handle_if_scalar('data', first, metadata.tables[table_name]):
+    for current in object:
+        if _handle_if_scalar('data', current, metadata.tables[table_name]):
             pass
-        elif isinstance(first, dict):
-            if '__name' not in first:
+        elif isinstance(current, dict):
+            if '__name' not in current:
                 first_prime = { '__name': table_name }
-                first_prime.update(first)
-                first = first_prime
-            _convert_dict(first, metadata)
-        elif isinstance(first, list):
+                first_prime.update(current)
+                current = first_prime
+            _convert_dict(current, metadata)
+        elif isinstance(current, list):
             # TODO: is there a better way to cook up a nested table name?
             nest_name = f"{table_name}_nested"
-            _handle_if_list(nest_name, first, metadata, table_name)
+            _handle_if_list(nest_name, current, metadata, table_name)
         else:
             raise NotImplementedError(f'items in table "{table_name}" are not in a format we understand')
     
@@ -147,16 +145,17 @@ def _handle_if_scalar(key, value, table):
         # check that the type is compatible
         if key == 'id':
             # upgrade the `id` column to whatever the data has
-            logger.info(f"changing '{key}' type to '{new_type}'")
+            logger.info(f"changing '{key}' type to '{new_type()}'")
             table.columns[key].type = new_type()
             return True
 
         # TODO: check more details like nullability
-        if new_type == table.columns[key].type:
+        if isinstance(table.columns[key].type, new_type):
             return True
 
-        if new_type == sqlalchemy.Numeric and table.columns[key].type == sqlalchemy.Integer:
+        if new_type == sqlalchemy.Numeric and isinstance(table.columns[key].type, sqlalchemy.Integer):
             # it's safe to upgrade an integer to a decimal
+            logger.info(f"upconverting '{key}' type from '{table.columns[key].type}' to '{new_type()}'")
             table.columns[key].type = new_type()
             return True
 
