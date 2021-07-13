@@ -1,34 +1,37 @@
 'Convert a Python object into a relational schema.'
+from decimal import Decimal
 import logging
+import os
+
+import sqlalchemy
+
+log_level = os.environ.get('LOGLEVEL', None)
+if log_level:
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if numeric_level:
+        logging.basicConfig(level=numeric_level)
+    else:
+        logging.warning(f'{log_level} is not a valid log level')
 
 logger = logging.getLogger(__name__)
 
 def convert(object):
-    tables = {}
+    metadata = sqlalchemy.MetaData()
 
     if isinstance(object, dict):
-        _convert_dict(object, tables)
+        _convert_dict(object, metadata)
     elif isinstance(object, list):
-        _convert_list(object, tables)
+        _convert_list(object, metadata)
     else:
         raise NotImplementedError('only dicts and lists are supported')
 
-    return tables
+    return metadata
 
 
-def produce_schema(tables):
-    sql = []
-    for table_name, schema in tables.items():
-        cols = [f"{k} {v}" for k, v in schema.items()]
-        sql.append(f'CREATE TABLE {table_name} ({", ".join(cols)})')
-    return ";\n".join(sql) + ';'
+class ColumnAlreadyExists(RuntimeError): pass
 
 
-class RedefineKeyError(RuntimeError):
-    pass
-
-
-def _convert_list(object, tables, name=None):
+def _convert_list(object, metadata, name=None):
     assert isinstance(object, list)
 
     if name:
@@ -36,225 +39,164 @@ def _convert_list(object, tables, name=None):
     else:
         table_name = 'objects'
 
-    if table_name not in tables:
+    if table_name not in metadata.tables:
         logger.info(f"creating table {table_name}")
-        tables[table_name] = {
-            'id': 'INTEGER PRIMARY KEY',
-        }
+        table = sqlalchemy.Table(table_name, metadata)
+        table.append_column(
+            sqlalchemy.Column(
+                'id',
+                sqlalchemy.Integer,
+                primary_key=True,
+            )
+        )
         if name:
             # if this is not the outer-most object,
             # then it's an ordered array and we need
             # to track that
-            tables[table_name]['_order'] = 'INTEGER'
+            table.append_column(
+                sqlalchemy.Column(
+                    '_order',
+                    sqlalchemy.Integer,
+                )
+            )
     
-    # for now, assume that the first item is representative
-    if len(object) > 0:
-        first = object[0]
-        if _handle_scalar('data', first, tables[table_name]):
+    for current in object:
+        if _handle_if_scalar('data', current, metadata.tables[table_name]):
             pass
-        elif isinstance(first, dict):
-            if '__name' not in first:
+        elif isinstance(current, dict):
+            if '__name' not in current:
                 first_prime = { '__name': table_name }
-                first_prime.update(first)
-                first = first_prime
-            _convert_dict(first, tables)
-        elif isinstance(first, list):
+                first_prime.update(current)
+                current = first_prime
+            _convert_dict(current, metadata)
+        elif isinstance(current, list):
             # TODO: is there a better way to cook up a nested table name?
             nest_name = f"{table_name}_nested"
-            sub_table_name = _convert_list(first, tables, name=nest_name)
-            tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
+            _handle_if_list(nest_name, current, metadata, table_name)
         else:
-            raise NotImplementedError(f'items in {table_name} are not in a format we understand')
+            raise NotImplementedError(f'items in table "{table_name}" are not in a format we understand')
     
     return table_name
 
 
-def _convert_dict(object, tables):
+def _convert_dict(object, metadata):
     assert isinstance(object, dict)
 
-    table_name = object.get('__name', 'object')
-    if table_name not in tables:
+    table_name = object.get('__name', 'objects')
+    if table_name not in metadata.tables:
         logger.info(f"creating table {table_name}")
-        tables[table_name] = {'id': 'INTEGER PRIMARY KEY' }
+        table = sqlalchemy.Table(table_name, metadata)
+        table.append_column(
+            sqlalchemy.Column(
+                'id',
+                sqlalchemy.Integer,
+                primary_key=True,
+            )
+        )
+    else:
+        table = metadata.tables[table_name]
 
-    for k, v in object.items():
-        if k.startswith('__'):
+    for key, value in object.items():
+        if key.startswith('__'):
             continue
 
-        if k in tables[table_name]:
-            raise RedefineKeyError(k)
-
-        if _handle_scalar(k, v, tables[table_name]):
+        if _handle_if_scalar(key, value, metadata.tables[table_name]):
             pass
-        elif isinstance(v, dict):
-            if '__name' not in v:
-                v_prime = { '__name': k }
-                v_prime.update(v)
-                v = v_prime
-            sub_table_name = _convert_dict(v, tables)
-            tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
-        elif isinstance(v, list):
-            sub_table_name = _convert_list(v, tables, name=k)
-            tables[sub_table_name][f"{table_name}_id"] = f"FOREIGN KEY {table_name}.id"
+        elif _handle_if_list(key, value, metadata, table_name):
+            pass
+        elif isinstance(value, dict):
+            if '__name' not in value:
+                v_prime = { '__name': key }
+                v_prime.update(value)
+                value = v_prime
+            sub_table_name = _convert_dict(value, metadata)
+            metadata.tables[sub_table_name].append_column(
+                sqlalchemy.Column(
+                    f"{table_name}_id",
+                    sqlalchemy.Integer,
+                    sqlalchemy.ForeignKey(f"{table_name}.id"),
+                    nullable=False,
+                )
+            )
         else:
-            raise NotImplementedError(f'item at {k} is not a format we understand')
+            raise NotImplementedError(f'item at key "{key}" is not a format we understand')
     
     return table_name
 
 
-def _handle_scalar(key, value, table):
+def _handle_if_scalar(key, value, table):
+    column_exists = (key in table.columns)
+    new_type = None
+
     if isinstance(value, bool):
-        table[key] = "BOOLEAN"
+        new_type = sqlalchemy.Boolean
     elif isinstance(value, int):
-        table[key] = "INTEGER"
+        new_type = sqlalchemy.Integer
     elif isinstance(value, float):
-        table[key] = "REAL"
+        new_type = sqlalchemy.Float
+    elif isinstance(value, Decimal):
+        new_type = sqlalchemy.Numeric
     elif isinstance(value, str):
-        table[key] = "TEXT"
+        new_type = sqlalchemy.Text
     else:
         return False
     
+    if column_exists:
+        # check that the type is compatible
+        if key == 'id':
+            # upgrade the `id` column to whatever the data has
+            logger.info(f"changing '{key}' type to '{new_type()}'")
+            table.columns[key].type = new_type()
+            return True
+
+        # TODO: check more details like nullability
+        if isinstance(table.columns[key].type, new_type):
+            return True
+
+        if new_type == sqlalchemy.Numeric and isinstance(table.columns[key].type, sqlalchemy.Integer):
+            # it's safe to upgrade an integer to a decimal
+            logger.info(f"upconverting '{key}' type from '{table.columns[key].type}' to '{new_type()}'")
+            table.columns[key].type = new_type()
+            return True
+
+        raise ColumnAlreadyExists(key)
+
+    else:
+        table.append_column(sqlalchemy.Column(key, new_type))
+    
+    return True
+
+
+def _handle_if_list(key, value, metadata, table_name):
+    if not isinstance(value, list):
+        return False
+
+    sub_table_name = _convert_list(value, metadata, name=key)
+    metadata.tables[sub_table_name].append_column(
+        sqlalchemy.Column(
+            f"{table_name}_id",
+            sqlalchemy.Integer,
+            sqlalchemy.ForeignKey(f"{table_name}.id"),
+            nullable=False,
+        )
+    )
+
     return True
 
 
 if __name__ == '__main__':
     from pprint import pprint
+    from sqlalchemy.dialects import sqlite
 
-    example1 = {
-        '__name': 'example1',
-        'foo': 'is a string',
-        'bar': 42,
-        'zab': [ 'a', 'b', 'c' ],
-        'tab': {
-            'bongo': 'boingo',
-        },
-        'nest': [
-            [ 'double-nest-1', 'double-nest-2' ],
-        ],
-    }
-    result1 = convert(example1)
+    from examples import EXAMPLES
 
-    print("-- example 1 -- ")
-    print("Original object:")
-    pprint(example1)
-    print("Resulting schema:")
-    print(produce_schema(result1))
+    for index, example in enumerate(EXAMPLES):
+        result = convert(example)
 
-    example2 = {
-     "__name": "card",
-     # "id":"0000579f-7b35-4ed3-b44c-db2a538066fe",
-     "oracle_id": "44623693-51d6-49ad-8cd7-140505caf02f",
-     # "multiverse_ids":[109722],
-     "mtgo_id": 25527,
-     # "mtgo_foil_id":25528,
-     # "tcgplayer_id":14240,
-     # "cardmarket_id":13850,
-     # "name":"Fury Sliver",
-     # "lang":"en",
-     # "released_at":"2006-10-06",
-     # "uri":"https://api.scryfall.com/cards/0000579f-7b35-4ed3-b44c-db2a538066fe",
-     # "scryfall_uri":"https://scryfall.com/card/tsp/157/fury-sliver?utm_source=api",
-     # "layout":"normal",
-     # "highres_image":true,
-     # "image_status":"highres_scan",
-     "image_uris": {
-          "small": "https://c1.scryfall.com/file/scryfall-cards/small/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979",
-          "normal": "https://c1.scryfall.com/file/scryfall-cards/normal/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979",
-          "large": "https://c1.scryfall.com/file/scryfall-cards/large/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979",
-          "png": "https://c1.scryfall.com/file/scryfall-cards/png/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.png?1562894979",
-          "art_crop": "https://c1.scryfall.com/file/scryfall-cards/art_crop/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979",
-          "border_crop": "https://c1.scryfall.com/file/scryfall-cards/border_crop/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979"
-     },
-     # "mana_cost":"{5}{R}",
-     "cmc": 6.0,
-     # "type_line":"Creature — Sliver",
-     # "oracle_text":"All Sliver creatures have double strike.",
-     # "power":"3",
-     # "toughness":"3",
-     "colors": ["R"],
-     # "color_identity":["R"],
-     # "keywords":[],
-     # "legalities":{
-     #      "standard":"not_legal",
-     #      "future":"not_legal",
-     #      "historic":"not_legal",
-     #      "gladiator":"not_legal",
-     #      "pioneer":"not_legal",
-     #      "modern":"legal",
-     #      "legacy":"legal",
-     #      "pauper":"not_legal",
-     #      "vintage":"legal",
-     #      "penny":"legal",
-     #      "commander":"legal",
-     #      "brawl":"not_legal",
-     #      "duel":"legal",
-     #      "oldschool":"not_legal",
-     #      "premodern":"not_legal"
-     # },
-     # "games": ["paper","mtgo"],
-    "reserved": False,
-     # "foil":true,
-     # "nonfoil":true,
-     # "oversized":false,
-     # "promo":false,
-     # "reprint":false,
-     # "variation":false,
-     # "set_id":"c1d109bc-ffd8-428f-8d7d-3f8d7e648046",
-     # "set":"tsp",
-     # "set_name":"Time Spiral",
-     # "set_type":"expansion",
-     # "set_uri":"https://api.scryfall.com/sets/c1d109bc-ffd8-428f-8d7d-3f8d7e648046",
-     # "set_search_uri":"https://api.scryfall.com/cards/search?order=set\u0026q=e%3Atsp\u0026unique=prints",
-     # "scryfall_set_uri":"https://scryfall.com/sets/tsp?utm_source=api",
-     # "rulings_uri":"https://api.scryfall.com/cards/0000579f-7b35-4ed3-b44c-db2a538066fe/rulings",
-     # "prints_search_uri":"https://api.scryfall.com/cards/search?order=released\u0026q=oracleid%3A44623693-51d6-49ad-8cd7-140505caf02f\u0026unique=prints",
-     # "collector_number":"157",
-     # "digital":false,
-     # "rarity":"uncommon",
-     # "flavor_text":"\"A rift opened, and our arrows were abruptly stilled. To move was to push the world. But the sliver's claw still twitched, red wounds appeared in Thed's chest, and ribbons of blood hung in the air.\"\n—Adom Capashen, Benalish hero",
-     # "card_back_id":"0aeebaf5-8c7d-4636-9e82-8c27447861f7",
-     # "artist":"Paolo Parente",
-     # "artist_ids":["d48dd097-720d-476a-8722-6a02854ae28b"],
-     # "illustration_id":"2fcca987-364c-4738-a75b-099d8a26d614",
-     # "border_color":"black",
-     # "frame":"2003",
-     # "full_art":false,
-     # "textless":false,
-     # "booster":true,
-     # "story_spotlight":false,
-     # "edhrec_rank":5181,
-     "prices": {
-          "usd": "1.01",
-          "usd_foil": "5.68",
-          "eur": "0.10",
-          "eur_foil": "1.00",
-          "tix": "0.03"
-     },
-     # "related_uris":{
-     #      "gatherer":"https://gatherer.wizards.com/Pages/Card/Details.aspx?multiverseid=109722",
-     #      "tcgplayer_infinite_articles":"https://infinite.tcgplayer.com/search?contentMode=article\u0026game=magic\u0026partner=scryfall\u0026q=Fury+Sliver\u0026utm_campaign=affiliate\u0026utm_medium=api\u0026utm_source=scryfall",
-     #      "tcgplayer_infinite_decks":"https://infinite.tcgplayer.com/search?contentMode=deck\u0026game=magic\u0026partner=scryfall\u0026q=Fury+Sliver\u0026utm_campaign=affiliate\u0026utm_medium=api\u0026utm_source=scryfall",
-     #      "edhrec":"https://edhrec.com/route/?cc=Fury+Sliver",
-     #      "mtgtop8":"https://mtgtop8.com/search?MD_check=1\u0026SB_check=1\u0026cards=Fury+Sliver"
-     # }
-    }
-    result2 = convert(example2)
-    print("-- example 2 -- ")
-    print("Original object:")
-    pprint(example2)
-    print("Resulting schema:")
-    print(produce_schema(result2))
-
-    example3 = [
-        {
-            'foo': 'is a string',
-            'bar': 42,
-        },
-    ]
-    result3 = convert(example3)
-
-    print("-- example 3 -- ")
-    print("Original object:")
-    pprint(example3)
-    print("Resulting schema:")
-    print(produce_schema(result3))
+        print(f"-- example {index} -- ")
+        print("Original object:")
+        pprint(example)
+        print("Resulting schema:")
+        for table in result.sorted_tables:
+            ct = sqlalchemy.schema.CreateTable(table)
+            print(ct.compile(dialect=sqlite.dialect()))
