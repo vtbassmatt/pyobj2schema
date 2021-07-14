@@ -10,13 +10,13 @@ from sqlalchemy.schema import CreateTable
 from sqlalchemy.dialects import sqlite
 
 o = {
-  'foo': 'this is clearly a string',
-  'bar': 42,
-  'baz': True,
-  'other': {
-    'one': 1.0,
-    'two': 'two',
-  },
+    'foo': 'this is clearly a string',
+    'bar': 42,
+    'baz': True,
+    'other': {
+      'one': 1.0,
+      'two': 'two',
+    },
 }
 
 metadata = convert(o)
@@ -46,7 +46,7 @@ CREATE TABLE other (
 ```
 
 More examples can be found if you run `examples.py`:
-```shell
+```bash
 % LOGLEVEL=info python examples.py
 ```
 
@@ -68,13 +68,13 @@ The expected identifier is `f"{table_name}.{column_name}"`, and the hint name is
 
 ```python
 o = {
-  'foo': 'this is clearly a string',
-  'bar': 42,
+    'foo': 'this is clearly a string',
+    'bar': 42,
 }
 hints = {
-	'objects.bar': {
-		'type': sqlalchemy.Numeric,
-	},
+    'objects.bar': {
+        'type': sqlalchemy.Numeric,
+    },
 }
 
 metadata = convert(o, hints)
@@ -108,16 +108,16 @@ The hint identifier is the table name and the hint name is `data_name`.
 
 ```python
 o = {
-  'others': [
-		'a',
-		'b',
-		'c'
-	],
+    'others': [
+        'a',
+        'b',
+        'c'
+    ],
 }
 hints = {
-	'others': {
-		'data_name': 'letter',
-	},
+    'others': {
+        'data_name': 'letter',
+    },
 }
 
 metadata = convert(o, hints)
