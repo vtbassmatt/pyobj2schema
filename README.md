@@ -45,6 +45,11 @@ CREATE TABLE other (
 	FOREIGN KEY(objects_id) REFERENCES objects (id)
 ```
 
+More examples can be found if you run `examples.py`:
+```shell
+% LOGLEVEL=info python examples.py
+```
+
 ## Extended usage
 
 ### Naming tables

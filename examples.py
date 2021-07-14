@@ -163,3 +163,40 @@ EXAMPLES = (
     (_example2, _example2_hints),
     _example3,
 )
+
+
+if __name__ == '__main__':
+    import logging
+    import os
+
+    log_level = os.environ.get('LOGLEVEL', None)
+    if log_level:
+        numeric_level = getattr(logging, log_level.upper(), None)
+        if numeric_level:
+            logging.basicConfig(level=numeric_level)
+        else:
+            logging.warning(f'{log_level} is not a valid log level')
+    
+    logger = logging.getLogger('examples.py')
+
+    from pprint import pprint
+    from sqlalchemy.dialects import sqlite
+    from sqlalchemy.schema import CreateTable
+    from typing import Tuple
+
+    from pyobj2schema import convert
+
+    for index, example in enumerate(EXAMPLES):
+        if isinstance(example, Tuple):
+            example, hints = example
+        else:
+            hints = {}
+        result = convert(example, hints)
+
+        print(f"-- example {index} -- ")
+        print("Original object:")
+        pprint(example)
+        print("Resulting schema:")
+        for table in result.sorted_tables:
+            ct = CreateTable(table)
+            print(ct.compile(dialect=sqlite.dialect()))

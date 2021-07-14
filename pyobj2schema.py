@@ -1,17 +1,8 @@
 'Convert a Python object into a relational schema.'
 from decimal import Decimal
 import logging
-import os
 
 import sqlalchemy
-
-log_level = os.environ.get('LOGLEVEL', None)
-if log_level:
-    numeric_level = getattr(logging, log_level.upper(), None)
-    if numeric_level:
-        logging.basicConfig(level=numeric_level)
-    else:
-        logging.warning(f'{log_level} is not a valid log level')
 
 logger = logging.getLogger(__name__)
 
@@ -193,26 +184,3 @@ def _handle_if_list(key, value, metadata, table_name, hints):
     )
 
     return True
-
-
-if __name__ == '__main__':
-    from pprint import pprint
-    from sqlalchemy.dialects import sqlite
-    from typing import Tuple
-
-    from examples import EXAMPLES
-
-    for index, example in enumerate(EXAMPLES):
-        if isinstance(example, Tuple):
-            example, hints = example
-        else:
-            hints = {}
-        result = convert(example, hints)
-
-        print(f"-- example {index} -- ")
-        print("Original object:")
-        pprint(example)
-        print("Resulting schema:")
-        for table in result.sorted_tables:
-            ct = sqlalchemy.schema.CreateTable(table)
-            print(ct.compile(dialect=sqlite.dialect()))
