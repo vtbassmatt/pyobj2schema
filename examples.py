@@ -13,7 +13,7 @@ _example0 = {
 
 _example1 = {
     '__name': 'example1',
-    '__id': 'bar',  # define the ID column
+    '__id': 'foo',  # define the ID column
     'foo': 'is a string',
     'bar': 42,
     'zab': [ 'a', 'b', 'c' ],

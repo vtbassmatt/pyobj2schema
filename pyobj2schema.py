@@ -152,7 +152,8 @@ def _handle_if_scalar(key, value, table, hints):
     
     if column_exists:
         # check that the type is compatible
-        if key == 'id':
+        id_name = hints.get(table.name, {}).get('id_name', 'id')
+        if key == id_name:
             # upgrade the `id` column to whatever the data has
             logger.info(f"changing '{key}' type to '{new_type()}'")
             table.columns[key].type = new_type()
