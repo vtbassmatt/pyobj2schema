@@ -82,9 +82,15 @@ def _convert_dict(object, metadata, hints):
     if table_name not in metadata.tables:
         logger.info(f"creating table {table_name}")
         table = sqlalchemy.Table(table_name, metadata)
+
+        # determine if there's a non-default name for the primary key
+        id_name = object.get('__id', 'id')
+        hints.setdefault(table_name, {})
+        hints[table_name]['id_name'] = id_name
+
         table.append_column(
             sqlalchemy.Column(
-                'id',
+                id_name,
                 sqlalchemy.Integer,
                 primary_key=True,
             )
@@ -106,11 +112,12 @@ def _convert_dict(object, metadata, hints):
                 v_prime.update(value)
                 value = v_prime
             sub_table_name = _convert_dict(value, metadata, hints)
+            id_name = hints.get(table_name, {}).get('id_name', 'id')
             metadata.tables[sub_table_name].append_column(
                 sqlalchemy.Column(
                     f"{table_name}_id",
                     sqlalchemy.Integer,
-                    sqlalchemy.ForeignKey(f"{table_name}.id"),
+                    sqlalchemy.ForeignKey(f"{table_name}.{id_name}"),
                     nullable=False,
                 )
             )
@@ -174,11 +181,12 @@ def _handle_if_list(key, value, metadata, table_name, hints):
         return False
 
     sub_table_name = _convert_list(value, metadata, hints, name=key)
+    id_name = hints.get(table_name, {}).get('id_name', 'id')
     metadata.tables[sub_table_name].append_column(
         sqlalchemy.Column(
             f"{table_name}_id",
             sqlalchemy.Integer,
-            sqlalchemy.ForeignKey(f"{table_name}.id"),
+            sqlalchemy.ForeignKey(f"{table_name}.{id_name}"),
             nullable=False,
         )
     )

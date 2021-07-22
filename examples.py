@@ -13,6 +13,7 @@ _example0 = {
 
 _example1 = {
     '__name': 'example1',
+    '__id': 'bar',  # define the ID column
     'foo': 'is a string',
     'bar': 42,
     'zab': [ 'a', 'b', 'c' ],
@@ -158,10 +159,10 @@ _example3 = [
 
 
 EXAMPLES = (
-    _example0,
+#    _example0,
     _example1,
-    (_example2, _example2_hints),
-    _example3,
+#    (_example2, _example2_hints),
+#    _example3,
 )
 
 
