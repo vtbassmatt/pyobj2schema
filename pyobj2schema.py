@@ -116,7 +116,7 @@ def _convert_dict(object, metadata, hints):
             metadata.tables[sub_table_name].append_column(
                 sqlalchemy.Column(
                     f"{table_name}_id",
-                    sqlalchemy.Integer,
+                    None,   # let SqlAlchemy figure out foreign key type
                     sqlalchemy.ForeignKey(f"{table_name}.{id_name}"),
                     nullable=False,
                 )
@@ -186,7 +186,7 @@ def _handle_if_list(key, value, metadata, table_name, hints):
     metadata.tables[sub_table_name].append_column(
         sqlalchemy.Column(
             f"{table_name}_id",
-            sqlalchemy.Integer,
+            None,   # let SqlAlchemy figure out foreign key type
             sqlalchemy.ForeignKey(f"{table_name}.{id_name}"),
             nullable=False,
         )
