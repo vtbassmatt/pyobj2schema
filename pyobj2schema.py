@@ -33,9 +33,13 @@ def _convert_list(object, metadata, hints, name=None):
     if table_name not in metadata.tables:
         logger.info(f"creating table {table_name}")
         table = sqlalchemy.Table(table_name, metadata)
+
+        # determine if there's a non-default name for the primary key
+        id_name = hints.get(table_name, {}).get('id_name', 'id')
+
         table.append_column(
             sqlalchemy.Column(
-                'id',
+                id_name,
                 sqlalchemy.Integer,
                 primary_key=True,
             )
@@ -84,7 +88,15 @@ def _convert_dict(object, metadata, hints):
         table = sqlalchemy.Table(table_name, metadata)
 
         # determine if there's a non-default name for the primary key
-        id_name = object.get('__id', 'id')
+        table_id_name = object.get('__id', None)
+        hint_id_name = hints.get(table_name, {}).get('id_name', None)
+        if table_id_name:
+            id_name = table_id_name
+        elif hint_id_name:
+            id_name = hint_id_name
+        else:
+            id_name = 'id'
+
         hints.setdefault(table_name, {})
         hints[table_name]['id_name'] = id_name
 
