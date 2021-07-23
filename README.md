@@ -143,3 +143,47 @@ CREATE TABLE others (
 	FOREIGN KEY(objects_id) REFERENCES objects (id)
 )
 ```
+
+#### Naming ID columns
+
+A column called `id` is automatically assumed to be the primary key column.
+It's an INTEGER unless the data shows otherwise.
+If you don't want this automatic name, you can add an `__id` key to any dict to set its name.
+Alternatively, you can create a hint for the table called `id_name`.
+
+```python
+o = {
+    '__name': 'different_id',
+    '__id': 'foo',
+    'foo': 'is a string',
+    'bar': 42,
+}
+hints = {}
+
+# alternatively:
+# o = {
+#     '__name': 'different_id',
+#     'foo': 'is a string',
+#     'bar': 42,
+# }
+# hints = {
+#     'different_id': {
+#         'id_name': 'foo',
+#     },
+# }
+
+metadata = convert(o, hints)
+for table in metadata.sorted_tables:
+    ct = CreateTable(table)
+    print(ct.compile(dialect=sqlite.dialect()))
+```
+
+yields
+
+```sql
+CREATE TABLE different_id (
+	foo TEXT NOT NULL, 
+	bar INTEGER, 
+	PRIMARY KEY (foo)
+)
+```

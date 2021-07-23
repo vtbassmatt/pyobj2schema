@@ -159,10 +159,10 @@ _example3 = [
 
 
 EXAMPLES = (
-#    _example0,
+    _example0,
     _example1,
-#    (_example2, _example2_hints),
-#    _example3,
+    (_example2, _example2_hints),
+    _example3,
 )
 
 
