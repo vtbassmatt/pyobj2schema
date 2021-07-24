@@ -149,9 +149,15 @@ def _handle_if_scalar(key, value, table, hints):
     hint_key = f"{table.name}.{key}"
     hint_type = hints.get(hint_key, {}).get('type', None)
 
+    nullable = False
+
     if hint_type:
         logger.info(f"{hint_key} using hinted type {hint_type}")
         new_type = hint_type
+    elif value is None:
+        new_type = sqlalchemy.VARBINARY # FIXME
+        logger.info(f"found a null value for {key}")
+        nullable = True
     elif isinstance(value, bool):
         new_type = sqlalchemy.Boolean
     elif isinstance(value, int):
@@ -172,22 +178,38 @@ def _handle_if_scalar(key, value, table, hints):
             # upgrade the `id` column to whatever the data has
             logger.info(f"changing '{key}' type to '{new_type()}'")
             table.columns[key].type = new_type()
+            # TODO: upgrade nullability?
             return True
 
         # TODO: check more details like nullability
         if isinstance(table.columns[key].type, new_type):
+            if nullable:
+                logger.info(f"marking '{key}' as nullable")
+                table.columns[key].nullable = nullable
             return True
 
+        # it's safe to upgrade an integer to a decimal
         if new_type == sqlalchemy.Numeric and isinstance(table.columns[key].type, sqlalchemy.Integer):
-            # it's safe to upgrade an integer to a decimal
             logger.info(f"upconverting '{key}' type from '{table.columns[key].type}' to '{new_type()}'")
             table.columns[key].type = new_type()
+            if nullable:
+                logger.info(f"marking '{key}' as nullable")
+                table.columns[key].nullable = nullable
+            return True
+        
+        # it's safe to upgrade VARBINARY to anything
+        if isinstance(table.columns[key].type, sqlalchemy.VARBINARY):
+            logger.info(f"upconverting '{key}' type from '{table.columns[key].type}' to '{new_type()}'")
+            table.columns[key].type = new_type()
+            if nullable:
+                logger.info(f"marking '{key}' as nullable")
+                table.columns[key].nullable = nullable
             return True
 
         raise ColumnAlreadyExists(key)
 
     else:
-        table.append_column(sqlalchemy.Column(key, new_type))
+        table.append_column(sqlalchemy.Column(key, new_type, nullable=nullable))
     
     return True
 

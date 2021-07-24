@@ -157,12 +157,24 @@ _example3 = [
     },
 ]
 
+_example4 = [
+    {
+        'foo': None, # null the first time we encounter it
+        'bar': 42,
+    },
+    {
+        'foo': 'data',  # has data the second time
+        'bar': 43,
+    },
+]
+
 
 EXAMPLES = (
     _example0,
     _example1,
     (_example2, _example2_hints),
     _example3,
+    _example4,
 )
 
 
