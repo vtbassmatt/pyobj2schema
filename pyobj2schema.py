@@ -1,6 +1,6 @@
 'Convert a Python object into a relational schema.'
 
-__VERSION__ = (0, 2, 1)
+__VERSION__ = (0, 2, 2)
 
 from decimal import Decimal
 import logging
