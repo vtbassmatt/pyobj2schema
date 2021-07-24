@@ -6,6 +6,7 @@ from decimal import Decimal
 import logging
 
 import sqlalchemy
+from sqlalchemy.sql.expression import column
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +156,7 @@ def _handle_if_scalar(key, value, table, hints):
         logger.info(f"{hint_key} using hinted type {hint_type}")
         new_type = hint_type
     elif value is None:
-        new_type = sqlalchemy.VARBINARY # FIXME
+        new_type = None
         logger.info(f"found a null value for {key}")
         nullable = True
     elif isinstance(value, bool):
@@ -171,7 +172,7 @@ def _handle_if_scalar(key, value, table, hints):
     else:
         return False
     
-    if column_exists:
+    if column_exists and new_type is not None:
         # check that the type is compatible
         id_name = hints.get(table.name, {}).get('id_name', 'id')
         if key == id_name:
@@ -206,8 +207,14 @@ def _handle_if_scalar(key, value, table, hints):
                 table.columns[key].nullable = nullable
             return True
 
-        raise ColumnAlreadyExists(key)
+        raise ColumnAlreadyExists(f"key '{key}', data: {value}")
 
+    elif column_exists and new_type is None:
+        # if the column already existed, make sure it's nullable
+        logger.info(f"marking '{key}' as nullable")
+        table.columns[key].nullable = True
+    elif new_type is None:
+        table.append_column(sqlalchemy.Column(key, sqlalchemy.VARBINARY, nullable=nullable))
     else:
         table.append_column(sqlalchemy.Column(key, new_type, nullable=nullable))
     

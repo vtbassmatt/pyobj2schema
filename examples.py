@@ -166,6 +166,10 @@ _example4 = [
         'foo': 'data',  # has data the second time
         'bar': 43,
     },
+    {
+        'foo': None, # null again later
+        'bar': 44,
+    },
 ]
 
 
